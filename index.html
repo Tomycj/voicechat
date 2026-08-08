@@ -10,7 +10,7 @@
     </head>
     <body>
         <h1>WebRTC Voicechat</h1>
-        
+
         <p>
             <select id="microphone-selector" class="selector">
                 <option id="selector-options-info" value="info">Buscando entradas de audio...</option>
@@ -24,6 +24,8 @@
         </p>
 
         <div id="call-controls" hidden>
+
+
             <p>
                 <button id="connect-button">Conectar llamada</button>
                 <button id="disconnect" disabled>Desconectar</button>
@@ -38,8 +40,10 @@
 
         <p id="info-msg" style="font-size: 12px; margin: 0; height: 15px;" class="fadeOut" onanimationend="this.innerText = '';"></p>
 
+        <audio id="remote-audio" autoplay></audio>
+
         <button id="language-switch">🌐</button>
 
-        <script type="module" src="./webrtcClient.mjs"></script>
+        <script type="module" src="./webrtcClient 2.mjs"></script>
     </body>
 </html>

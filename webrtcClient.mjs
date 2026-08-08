@@ -21,162 +21,38 @@ const msgButton = document.getElementById("message-button");
 
 const display = document.getElementById("info-msg");
 
+const remoteAudioElement = document.getElementById("remote-audio");
+
 
 let currentLanguage = document.documentElement.lang;
 
-
+/** @type {RTCPeerConnection} */
 let peerConnection;
-const iceCandidatesBufferSymbol = Symbol("iceCandidatesBuffer");
-let dataChannel;
-
-let succesfullyAnswering = false;
-
-await handleMicrophoneAccess();
-
-const wsSignaler = {
-    socket: null,
-    
-    async createSocket() {
-
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
-        }
-
-        //const socket = new WebSocket("wss://" + SIGNALING_SV_HOSTNAME + `/${ssPwInput.value}`); // dirty: appears as the name of the request
-        const socket = new WebSocket("wss://" + SIGNALING_SV_HOSTNAME, `${ssPwInput.value || "empty"}`); // dirty: send password as a protocol
-
-        socket.onmessage = (ev)=> {
-            try {
-                const data = JSON.parse(ev.data); //Json string to object, or string if it's a string
-
-                if (data.candidate) {
-                    console.log("WS: ICE candidate received");
-
-                    // before adding it, I need to wait until I set a remote description on the connection.
-                    if (!peerConnection.remoteDescription) {
-                        peerConnection[iceCandidatesBufferSymbol].buffer.push(data)
-                    }
-                    else {
-                        peerConnection.addIceCandidate(data);
-                    }
-
-                }
-                else if (data.description) {
-                    console.log("WS: description received.");
-                }
-                else if (data === "peer-disconnected") {
-                    disconnectButton.click();
-                }
-                else {
-                    console.warn("WS: Unknown signal received:", ev.data)
-                }
-
-            } catch (error) {
-                console.error(ev.data)
-            }
-        }
-
-        socket.onclose = (ev)=> {
-            msgButton.removeEventListener("click", clickWsHandler);
-            console.log("WSS: Closed.");
-        }
-
-        function clickWsHandler() {
-            console.warn("Not implemented!");
-            //sendSignal("Hello by websocket!")
-        }
-
-        msgButton.onclick = clickWsHandler;
-
-
-        return new Promise((resolve, reject) => {
-            
-            socket.onopen = ()=> {
-                console.log("WS: Connected.");
-                displayInfo("Conectado al servidor!");
-                this.socket = socket;
-                resolve();
-            };
-
-            socket.onerror = (ev)=>{
-                displayInfo("No se pudo conectar al servidor. Revisar la contraseña!");
-                reject("handled");
-            };
-
-        })
-
-    },
-
-    sendSignal(data) {
-
-        if (data.candidate) {
-            console.log("WS: Sending ICE candidate.")
-        }
-        const dataString = JSON.stringify(data);
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.send(dataString);
-        } else {
-            console.error("web socket is not open, can't send signal:", dataString);
-        }
-    },
-}
-
-micSelector.addEventListener("change", replaceTrackIfConnected);
-
-
-ssConnectButton.onclick = _=> {
-
-    const password = ssPwInput.value;
-
-    wsSignaler.createSocket()
-    .then(()=>{
-        document.getElementById("call-controls").hidden = false;
-        document.getElementById("ss-controls").hidden = true;
-    })
-    .catch((err)=>{
-        if (err !== "handled") {
-            console.error(err)
-            displayInfo("Error inesperado!");
-        }
-    })
-
-
-    
-
-}
-
-
-connectButton.onclick = _=>{connectButtonHandler()}
-
-disconnectButton.addEventListener("click", disconnectHandler);
-
-msgButton.addEventListener("click", sendMsgOverDataChannel);
-
-
-document.getElementById("language-switch").addEventListener("click", switchLanguage);
+/** @type {MediaStream} */
+let localStream;
 
 /*
-
-if ("serviceWorker" in navigator) {
-    
-    navigator.serviceWorker.register("/service-worker.mjs")
-    .then((registration) => {
-        console.log("Service Worker registered with scope:", registration.scope);
-    })
-    .catch((error) => {
-        console.error("Service Worker registration failed:", error);
-    });
-    
-}
-
+    if ("serviceWorker" in navigator) {
+        
+        navigator.serviceWorker.register("/service-worker.mjs")
+        .then((registration) => {
+            console.log("Service Worker registered with scope:", registration.scope);
+        })
+        .catch((error) => {
+            console.error("Service Worker registration failed:", error);
+        });
+    }
 */
+
+
 
 async function handleMicrophoneAccess() {
 
     const permissionStatus = await navigator.permissions.query({name: "microphone"});
 
-    function findMicsAndSelectVirtualOne() {
+    console.log("Permission status is", permissionStatus.state)
+
+    function populateMicrophonesList() {
         navigator.mediaDevices.enumerateDevices()
         .then(devices => {
     
@@ -198,16 +74,30 @@ async function handleMicrophoneAccess() {
                 micSelector.appendChild(option);
             }
         
-            const virtualMicOption = Array.from(micSelector.options).find(option => option.text === CHOSEN_MIC_LABEL);
-            if (virtualMicOption) {virtualMicOption.selected = true};
+            //const virtualMicOption = Array.from(micSelector.options).find(option => option.text === CHOSEN_MIC_LABEL);
+            //if (virtualMicOption) {virtualMicOption.selected = true};
         });
     }
 
     if (permissionStatus.state === "granted") {
-        findMicsAndSelectVirtualOne();
+        populateMicrophonesList();
         return;
     }
     else {
+
+        permissionStatus.onchange = _=>{
+
+            console.log("Permission status is", permissionStatus.state)
+
+            if (permissionStatus.state === "granted") {
+                populateMicrophonesList();
+                return;
+            }
+            if (permissionStatus.state === "denied") {
+                micSelectorInfo.text = translations.micSelectorError[currentLanguage];
+                micSelectorInfo.value = "error";
+            }
+        }
 
         navigator.mediaDevices.getUserMedia({ audio: true })
         .catch(err => {
@@ -216,303 +106,270 @@ async function handleMicrophoneAccess() {
             micSelectorInfo.value = "error";
         });
 
-        permissionStatus.onchange = _=>{
-            if (permissionStatus.state === "granted") {
-                findMicsAndSelectVirtualOne();
-                return;
-            }
-            if (permissionStatus.state === "denied") {
-                micSelectorInfo.text = translations.micSelectorError[currentLanguage];
-                micSelectorInfo.value = "error";
-            }
-        }
     }
 }
 
+await handleMicrophoneAccess();
 
-async function connectButtonHandler() {
 
+const signaling = {
+    /** @type {WebSocket} */
+    socket: null,
+    
+    async initialize() {
+
+        if (this.socket) {
+            this.socket.close();
+            this.socket = null;
+        }
+
+        //const socket = new WebSocket("wss://" + SIGNALING_SV_HOSTNAME + `/${ssPwInput.value}`); // dirty: appears as the name of the request
+        const socket = new WebSocket("wss://" + SIGNALING_SV_HOSTNAME, `${ssPwInput.value || "empty"}`); // dirty: send password as a protocol
+
+        socket.onmessage = (ev)=> {
+
+            if (!localStream) {
+                console.warn("Message ignored. I'm not ready yet.")
+                return;
+            }
+
+            const message = JSON.parse(ev.data);
+
+            switch (message.type) {
+                case "offer":
+                    console.log("SDP: offer received")
+                    handleOffer(message.content);
+                break;
+                
+                case "answer":
+                    console.log("SDP: answer received")
+                    handleAnswer(message.content);
+                break;
+                
+                case "candidate":
+                    handleCandidate(message.content);
+                break;
+
+                case "ready":
+                    // we both are ready
+                    if (peerConnection) {
+                        console.log("Already in call, ignored.");
+                        return;
+                    }
+                    makeCall();
+                break
+                
+                case "bye":
+                    if (peerConnection) hangup();
+                break;
+
+                default:
+                    console.warn("Unknown message:", message);
+                break;
+            }
+
+        }
+
+        socket.onclose = (ev)=> {
+            console.log("WSS: Closed.");
+        }
+
+        return new Promise((resolve, reject) => {
+            
+            socket.onopen = ()=> {
+                console.log("WS: Connected.");
+                displayInfo("Conectado al servidor!");
+                this.socket = socket;
+                resolve();
+            };
+
+            socket.onerror = (ev)=>{
+                displayInfo("No se pudo conectar al servidor. Revisar la contraseña!");
+                reject("handled");
+            };
+
+        })
+
+    },
+
+    /** Sends the data stringifying the message object */
+    sendMessage(message) {
+
+        //if (message.candidate) console.log("WS: Sending ICE candidate.");
+        const messageString = JSON.stringify(message);
+        
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            this.socket.send(messageString);
+        } else {
+            console.error("web socket is not open, can't send signal:", messageString);
+        }
+    },
+}
+
+
+micSelector.addEventListener("change", async _=> {
+
+    if (!peerConnection) return;
+
+    const newStream = await getAudioStream();
+
+    peerConnection.getSenders()[0].replaceTrack(newStream.getTracks()[0]);
+    console.log("Track changed.");
+
+});
+
+ssConnectButton.onclick = _=> {
+
+    const password = ssPwInput.value;
+
+    signaling.initialize()
+    .then(()=>{
+        document.getElementById("call-controls").hidden = false;
+        document.getElementById("ss-controls").hidden = true;
+    })
+    .catch((err)=>{
+        if (err !== "handled") {
+            console.error(err)
+            displayInfo("Error inesperado!");
+        }
+    })
+}
+
+connectButton.onclick = async _=> {
+
+    localStream = await getAudioStream();
+    
     connectButton.disabled = true;
     disconnectButton.disabled = false;
     
     connectStatus.innerText = translations.connectStatusConnecting[currentLanguage];
-    console.log("\nInitiating new connection...");
-
-    await createNewConnection(true);
-
-    const exchangeSuccessful = await exchangeSdps();
-    //console.warn("SDPS EXCHANGED")
-
-    if (!exchangeSuccessful) {
-        connectStatus.innerText = translations.connectStatusFail[currentLanguage];;
-        connectButton.disabled = false;
-    }
-}
-
-async function createNewConnection() {
-
-    peerConnection = new RTCPeerConnection();
-
-    peerConnection[iceCandidatesBufferSymbol] = {
-        buffer: [],
-        addCandidates() {
-            for (const candidate of this.buffer) {
-                peerConnection.addIceCandidate(candidate);
-            }
-            this.buffer = []
-        }
-    }
-
     
+    signaling.sendMessage({type: "ready"});
+};
 
-    //if (wsSignaler) ???
+disconnectButton.onclick = _=> {
+    hangup();
+    signaling.sendMessage({type: "bye"});
+};
 
-    await addAudioTrack();
-    //await wait()  //TODO: this makes it so that only 1 negotiation needed event fires, dunno why.
-    
+msgButton.onclick = _=>{ };
 
-    /* A negotiated channel with the same ID is shared between peers, resulting in the creation of only 1 channel
-        (as opposed to a sendchannel and a receivechannel)
-    */
-    dataChannel = peerConnection.createDataChannel("negotiated channel", {negotiated: true, id: 100});
-    // setup data channel
-    dataChannel.onopen = ()=> {
-        console.log("Connection open!");
-        connectStatus.innerText = translations.connectStatusSuccess[currentLanguage];
-        disconnectButton.disabled = false;
-    };
-    dataChannel.onclose = ()=> console.log("Connection closed!");
-    dataChannel.onmessage = (ev)=> {
-        displayInfo(ev.data);
-    }
-    
-    /*
-        peerConnection.onnegotiationneeded = ()=> {
-            // I think this also triggers when a localdescription is set
-            //console.warn("Negotiation needed event triggered");
-        }
-    */
-    /* when using a negotiated channel, this doesn't trigger
-        peerConnection.ondatachannel = (ev)=> {
-            console.warn("ondatachannel event triggered")
-            dataChannel = ev.channel;
-            setupDataChannel();
-        }
-    */
-    peerConnection.ontrack = (ev)=> { //fires when a track is received, not when it's locally created.
-        //console.warn("Track received.")
-        const [stream] = ev.streams;
-
-        const audioElement = document.createElement("audio");
-        audioElement.srcObject = stream;
-        audioElement.play();
-    }
-    
-    peerConnection.onicecandidate = (ev) => {
-        //console.warn("ICE CANDIDATE EVENT TRIGGERED")
-        if (ev.candidate) {
-
-            /*
-                console.log("ICE CANDIDATE CREATED")
-                document.getElementById('signaling').value += JSON.stringify(event.candidate, null, 4) + '\n';
-        
-                if (!succesfullyAnswering) { // don't send an ice candidate if I already got one from the server together with an offer.
-                    postJsonToSignalingServer("RTCIceCandidate", event.candidate, "RTCIceCandidate successfully sent to server.");
-                }
-                else {
-                    console.log("Ice candidate sending cancelled")
-                    succesfullyAnswering = false;
-                }
-            */
-
-            wsSignaler.sendSignal(ev.candidate);
-
-        }
-        else if (ev.candidate === null) {
-            console.log("ICE candidate gathering complete.");
-        }
-        else (console.warn("icecandidate event fired but no candidate was included"));
-    };
-    /* Doesn't trigger when the connection is closed the way I'm closing it.
-        localConnection.onconnectionstatechange = (ev) => {
-            if (localConnection.connectionState === "connected") {
-                console.log("CONNECTION STATE IS NOW CONNECTED")
-            }
-            if (localConnection.connectionState === "closed") {
-                console.log("CONNECTION STATE IS NOW CLOSED")
-            }
-            if (localConnection.connectionState === "disconnected") {
-                console.log("CONNECTION STATE IS NOW DISCONNECTED")
-            }
-        }
-    */
-}
-async function exchangeSdps(forceSend = false) {
-
-    const findOfferAttempt = await tryFindingOffer();
-    if (findOfferAttempt === "success") {
-        return true;
-    }
-    else if (findOfferAttempt === "failure") {
-        
-        console.log("\nNo offer found in signaling server. Sending new offer...");
-        connectStatus.innerText = translations.connectStatusAwaiting[currentLanguage];
-
-        const sendOfferAttempt = await trySendingOffer();
-
-        if (sendOfferAttempt === "success") {
-            return true;
-        }
-    }
-    return false;
-}
-
-async function tryFindingOffer() {
-
-    //somewhere here a negotiation needed event triggers. Why?
-    const description = await getJsonFromSignalingSv("/RTCSessionDescription");
-
-    if (description === null) {
-        console.log("Could not get session description.");
-        return "failure";
-    }
-
-    /*
-        const candidate = await getJsonFromSignalingSv("RTCIceCandidate");
-        if (candidate === null) {
-            console.log("Could not get ICE candidate.");
-            return "failure";
-        }
-    */
-
-    await peerConnection.setRemoteDescription(description);
-   
-    peerConnection[iceCandidatesBufferSymbol].addCandidates();
-
-    //succesfullyAnswering = true;
-
-    await peerConnection.setLocalDescription(); // sets an automatically created answer
-
-    
-    // further attempts at immediately seting a local description fail because the signaling state is already set to stable.
-
-    await postJsonToSignalingServer("/RTCSessionDescription-answer", peerConnection.localDescription, "Answer successfully sent to server.");
-    return "success";
-}
-async function trySendingOffer() {
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);  //this triggers an icecandidate event
-    //document.getElementById('signaling').value += JSON.stringify(peerConnection.localDescription, null, 4) + '\n';
-
-    console.log("RTCSessionDescription: Awaiting answer to posted offer...");
-    const response = await postJsonToSignalingServer("/RTCSessionDescription", peerConnection.localDescription, "Answer to offer received.")
-    
-    if (response.status === 200) {
-        const answer = await response.json();
-        await peerConnection.setRemoteDescription(answer);
-        peerConnection[iceCandidatesBufferSymbol].addCandidates();
-        console.log("Answer set as remote description.");
-        return "success";
-    }
-    else if (response.status === 409){
-        console.warn("Connection offer not uploaded: An RTCSessionDescription is probably already stored in the server.");
-    }
-    return "failure";
-    
-}
-
-
-function replaceTrackIfConnected() {
-    if (dataChannel?.readyState !== "open") {return;}
-
-    getAudioStream()
-    .then(stream => {
-        peerConnection.getSenders()[0].replaceTrack(stream.getTracks()[0]);
-        console.log("Track changed.");
-    });
-}
+document.getElementById("language-switch").addEventListener("click", switchLanguage);
 
 
 
-function disconnectHandler() {
-    if (!peerConnection) {
+/** @returns true but vscode doesn't know it */
+function indeterminizer() {return true;}
+
+async function handleOffer(offer) {
+    // offer here is the sdp string.
+
+    if (peerConnection && indeterminizer()) {
+        console.error("peerConnection already present.");
         return;
     }
-    peerConnection.close();
-    peerConnection = null;
 
-    connectStatus.innerText = dataChannel.readyState === "open" ? translations.connectStatusClosed[currentLanguage] : "";
-    
+    await createPeerConnection();
+
+    await peerConnection.setRemoteDescription({type: "offer", sdp: offer});
+    console.log("_SDP: Remote description SET from offer");
+
+    const answer = await peerConnection.createAnswer();
+    signaling.sendMessage({type: "answer", content: answer.sdp});
+    console.log("_SDP: Answer created and sent");
+
+    await peerConnection.setLocalDescription(answer);
+    console.log("_SDP: Local description SET from answer");
+}
+
+async function handleAnswer(answer) {
+    if (!peerConnection && indeterminizer()) {
+        console.error("No peerConnection");
+        return;
+    }
+    await peerConnection.setRemoteDescription({type: "answer", sdp: answer});
+    console.log("_SDP: Remote description SET from received answer");
+}
+
+async function handleCandidate(candidate) {
+    if (!peerConnection && indeterminizer()) {
+        console.error("No peerConnection");
+        return;
+    }
+
+    if (candidate === "") {
+        console.log("ICE: message received: a transport ran out of proposals")
+        await peerConnection.addIceCandidate(null);
+    }
+    else if (candidate) {
+        console.log("ICE: message received: Received candidate and added to the remote description!")
+        await peerConnection.addIceCandidate(candidate)
+    }
+    else {
+        console.error("Unexpected candidate format:", candidate);
+    }
+}
+
+async function makeCall() {
+    await createPeerConnection();
+    const offer = await peerConnection.createOffer();
+	signaling.sendMessage({type: "offer", content: offer.sdp});
+    console.log("SDP: Offer created and sent");
+	await peerConnection.setLocalDescription(offer);
+    console.log("SDP: Local description SET from offer");
+}
+
+async function hangup() {
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+
+    localStream.getTracks().forEach(track=>track.stop());
+    localStream = null;
     connectButton.disabled = false;
-
-    micSelector.disabled = false;
     disconnectButton.disabled = true;
 }
 
-function sendMsgOverDataChannel() {
+async function createPeerConnection() {
 
-    if (dataChannel?.readyState !== "open") {
-        displayInfo(translations.sendMsgFail[currentLanguage]);
-        return;
+    peerConnection = new RTCPeerConnection();
+
+    peerConnection.onicecandidate = (ev) => {
+        if (ev.candidate !== null) {
+            signaling.sendMessage({type: "candidate", content: ev.candidate});
+        }
+
+        // debug
+		if (ev.candidate === null) {
+			//console.log("ICE: sending message: All transports have finished gathering. iceGatheringState is now complete.");
+		}
+		else if (ev.candidate === "") {
+			console.log("ICE: sending message: A transport has run out of proposals")
+		}
+		else {
+			console.log("ICE: sending message with candidate (localDescription is set, and the candidate has been added to it)")
+		}
     };
 
-    displayInfo(translations.sendMsgSuccess[currentLanguage]);
-    dataChannel.send(translations.sendMsgText[currentLanguage]);
-}
+    peerConnection.ontrack = (ev)=> {
+        remoteAudioElement.srcObject = ev.streams[0];
+        //remoteAudioElement.play(); // should be autoplay
+        console.log("[Peer Connection] Received a track. Added its stream to the remote audio.")
+    }
+    
+    console.log("Peer connection created");
 
-async function addAudioTrack() {
 
     const audioStream = await getAudioStream();
-
-    //console.log(audioStream.getTracks()[0].getSettings())
-    //console.log(audioStream.getTracks()[0].getCapabilities())
-
     audioStream.getAudioTracks().forEach(track => {
         peerConnection.addTrack(track, audioStream);
-        console.log("Audio track added to peer connection.");
-    })
-}
-
-async function postJsonToSignalingServer(subdirectory, jsonData, successMsg) {
-    
-    return fetch(SIGNALING_SV_URL + subdirectory, {
-        method: "POST",
-        body: JSON.stringify(jsonData),
-        headers: {
-            "Content-type": "application/json",
-            [`password-${ssPwInput.value}`]: ssPwInput.value
-        }
-    })
-    .then(response=> {
-
-        if (response.status === 200) {
-            console.log(`${subdirectory}: ${successMsg}`);
-            return response;
-        }
-        else if (response.status === 204) {return null;}
-        else if (response.status === 409) {return null;}
-        return response;
-    })
-}
-
-async function getJsonFromSignalingSv(subdirectory) {
-
-    return fetch(SIGNALING_SV_URL + subdirectory, {
-        method: "GET",
-        headers: {
-            "Content-type": "application/json",
-            [`password-${ssPwInput.value}`]: ssPwInput.value
-        }
-    })
-    .then(response => {
-        if (response.status === 200) return response.json();
-        else if (response.status === 204) return null;
-        else if (response.status === 409) return null;
+        console.log("[Peer Connection] Audio track added.");
     });
 }
 
 
+/** Get audio from user-selected microphone */
 async function getAudioStream() {
 
     return navigator.mediaDevices.getUserMedia({
