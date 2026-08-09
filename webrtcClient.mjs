@@ -2,7 +2,7 @@
 import translations from "./translations.mjs";
 
 const SIGNALING_SV_HOSTNAME = "tomycj.ddnsfree.com";
-const SIGNALING_SV_URL = "https://" + SIGNALING_SV_HOSTNAME; //window.location.href
+const SIGNALING_SV_URL = "https://" + SIGNALING_SV_HOSTNAME;
 
 const CHOSEN_MIC_LABEL = "Micrófono (VB-Audio Virtual Cable)";
 
@@ -31,6 +31,9 @@ let peerConnection;
 /** @type {MediaStream} */
 let localStream;
 
+
+// Immediate actions
+
 /*
     if ("serviceWorker" in navigator) {
         
@@ -44,73 +47,7 @@ let localStream;
     }
 */
 
-
-
-async function handleMicrophoneAccess() {
-
-    const permissionStatus = await navigator.permissions.query({name: "microphone"});
-
-    console.log("Permission status is", permissionStatus.state)
-
-    function populateMicrophonesList() {
-        navigator.mediaDevices.enumerateDevices()
-        .then(devices => {
-    
-            const audioInputs = devices.filter(device => device.kind === "audioinput");
-        
-            if (audioInputs.length === 0) {
-                micSelectorInfo.text = translations.micSelectorEmpty[currentLanguage];
-                micSelectorInfo.value = "empty";
-                return;
-            }
-
-            micSelectorInfo.remove();
-            micSelectorInfo.value = null;
-
-            for (const audioInput of audioInputs) {
-                const option = document.createElement("option");
-                option.text = audioInput.label || "Unlabeled audio device";
-                option.value = audioInput.deviceId;
-                micSelector.appendChild(option);
-            }
-        
-            //const virtualMicOption = Array.from(micSelector.options).find(option => option.text === CHOSEN_MIC_LABEL);
-            //if (virtualMicOption) {virtualMicOption.selected = true};
-        });
-    }
-
-    if (permissionStatus.state === "granted") {
-        populateMicrophonesList();
-        return;
-    }
-    else {
-
-        permissionStatus.onchange = _=>{
-
-            console.log("Permission status is", permissionStatus.state)
-
-            if (permissionStatus.state === "granted") {
-                populateMicrophonesList();
-                return;
-            }
-            if (permissionStatus.state === "denied") {
-                micSelectorInfo.text = translations.micSelectorError[currentLanguage];
-                micSelectorInfo.value = "error";
-            }
-        }
-
-        navigator.mediaDevices.getUserMedia({ audio: true })
-        .catch(err => {
-            console.log(`${err.name}: ${err.message}`);
-            micSelectorInfo.text = translations.micSelectorError[currentLanguage];
-            micSelectorInfo.value = "error";
-        });
-
-    }
-}
-
 await handleMicrophoneAccess();
-
 
 const signaling = {
     /** @type {WebSocket} */
@@ -210,6 +147,14 @@ const signaling = {
     },
 }
 
+fetch(SIGNALING_SV_URL + "/ping")
+.then(res=>res.text())
+.then(txt=>{
+    console.log("Successfully pinged signaling server!");
+    displayInfo(txt);
+});
+
+// Event handling
 
 micSelector.addEventListener("change", async _=> {
 
@@ -230,6 +175,7 @@ ssConnectButton.onclick = _=> {
     .then(()=>{
         document.getElementById("call-controls").hidden = false;
         document.getElementById("ss-controls").hidden = true;
+        sessionStorage.setItem("voicechat-data", password);
     })
     .catch((err)=>{
         if (err !== "handled") {
@@ -259,6 +205,70 @@ msgButton.onclick = _=>{ };
 
 document.getElementById("language-switch").addEventListener("click", switchLanguage);
 
+// Functions
+
+async function handleMicrophoneAccess() {
+
+    const permissionStatus = await navigator.permissions.query({name: "microphone"});
+
+    console.log("Permission status is", permissionStatus.state)
+
+    function populateMicrophonesList() {
+        navigator.mediaDevices.enumerateDevices()
+        .then(devices => {
+    
+            const audioInputs = devices.filter(device => device.kind === "audioinput");
+        
+            if (audioInputs.length === 0) {
+                micSelectorInfo.text = translations.micSelectorEmpty[currentLanguage];
+                micSelectorInfo.value = "empty";
+                return;
+            }
+
+            micSelectorInfo.remove();
+            micSelectorInfo.value = null;
+
+            for (const audioInput of audioInputs) {
+                const option = document.createElement("option");
+                option.text = audioInput.label || "Unlabeled audio device";
+                option.value = audioInput.deviceId;
+                micSelector.appendChild(option);
+            }
+        
+            //const virtualMicOption = Array.from(micSelector.options).find(option => option.text === CHOSEN_MIC_LABEL);
+            //if (virtualMicOption) {virtualMicOption.selected = true};
+        });
+    }
+
+    if (permissionStatus.state === "granted") {
+        populateMicrophonesList();
+        return;
+    }
+    else {
+
+        permissionStatus.onchange = _=>{
+
+            console.log("Permission status is", permissionStatus.state)
+
+            if (permissionStatus.state === "granted") {
+                populateMicrophonesList();
+                return;
+            }
+            if (permissionStatus.state === "denied") {
+                micSelectorInfo.text = translations.micSelectorError[currentLanguage];
+                micSelectorInfo.value = "error";
+            }
+        }
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+        .catch(err => {
+            console.log(`${err.name}: ${err.message}`);
+            micSelectorInfo.text = translations.micSelectorError[currentLanguage];
+            micSelectorInfo.value = "error";
+        });
+
+    }
+}
 
 async function handleOffer(offer) {
     // offer here is the sdp string.
@@ -359,7 +369,7 @@ async function createPeerConnection() {
     }
     
     console.log("Peer connection created");
-    displayInfo(translations.connectStatusSuccess);
+    displayInfo(translations.connectStatusSuccess[currentLanguage]);
     connectStatus.innerText = "";
 
     const audioStream = await getAudioStream();
@@ -386,7 +396,6 @@ async function getAudioStream() {
         }
     });
 }
-
 
 function displayInfo(msg) {
     display.innerText = msg;
@@ -424,13 +433,5 @@ async function wait() {
         setTimeout(resolve,1000)
     })
 }
-
-
-fetch(SIGNALING_SV_URL + "/ping")
-.then(res=>res.text())
-.then(txt=>{
-    console.log("Successfully pinged signaling server!");
-    displayInfo(txt);
-})
 
 function indeterminizer() {return true;}
