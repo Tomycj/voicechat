@@ -28,6 +28,12 @@ body::-webkit-scrollbar-track {
 
 button{
 	background-color: var(--bg-color-dark);
+	border-color: rgb(36, 36, 36);
+	border-style: solid;
+	min-height: 4ch;
+}
+button:disabled{
+	border-color: rgb(90, 90, 90);
 }
 button:hover:enabled {
 	background-color: #ffdd48;
@@ -40,6 +46,10 @@ button:hover:enabled {
 	height: 3ch;
 	min-width: 12ch;
 	font-size: 16px;
+}
+
+input {
+	min-height: 3ch;
 }
 
 textarea {
@@ -115,29 +125,26 @@ dialog {
 	margin-top:12px;
 	margin-bottom: 12px;
 }
-.hidden {
-	visibility: hidden
-}
 
 select:disabled {
     color: rgba(16, 16, 16, 0.3);
     border-color: rgba(118, 118, 118, 0.3);
 }
-.selector {
+select {
 	max-width: 40ch;
 	background-color: var(--bg-color-dark);
 	border-width: 2px;
 	color: black;
-	border-color: var(--transparentWhiteB);
+	border-color: black;
 }
-.selector option {
+select option {
 	background-color: /*rgba(16, 16, 16, 1)*/var(--bg-color-dark);
 	color: black;
 }
 option:hover{
 	background-color: #ffdd48;
 }
-.selector:hover:enabled {
+select:hover:enabled {
 	background-color: #ffdd48;
 	cursor: pointer;
 }

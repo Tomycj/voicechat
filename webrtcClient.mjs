@@ -172,19 +172,23 @@ const signaling = {
 
         socket.onclose = (ev)=> {
             console.log("WSS: Closed.");
+            hangup();
+            document.getElementById("call-controls").hidden = true;
+            document.getElementById("ss-controls").hidden = false;
         }
 
         return new Promise((resolve, reject) => {
             
             socket.onopen = ()=> {
                 console.log("WS: Connected.");
-                displayInfo("Conectado al servidor!");
+
+                displayInfo(translations.ssConnectAttemptSuccess[currentLanguage]);
                 this.socket = socket;
                 resolve();
             };
 
             socket.onerror = (ev)=>{
-                displayInfo("No se pudo conectar al servidor. Revisar la contraseña!");
+                displayInfo(translations.ssConnectAttemptFail[currentLanguage]);
                 reject("handled");
             };
 
@@ -241,7 +245,6 @@ connectButton.onclick = async _=> {
     
     connectButton.disabled = true;
     disconnectButton.disabled = false;
-    
     connectStatus.innerText = translations.connectStatusConnecting[currentLanguage];
     
     signaling.sendMessage({type: "ready"});
@@ -256,10 +259,6 @@ msgButton.onclick = _=>{ };
 
 document.getElementById("language-switch").addEventListener("click", switchLanguage);
 
-
-
-/** @returns true but vscode doesn't know it */
-function indeterminizer() {return true;}
 
 async function handleOffer(offer) {
     // offer here is the sdp string.
@@ -329,6 +328,7 @@ async function hangup() {
     localStream = null;
     connectButton.disabled = false;
     disconnectButton.disabled = true;
+    connectStatus.innerText = "";
 }
 
 async function createPeerConnection() {
@@ -359,7 +359,8 @@ async function createPeerConnection() {
     }
     
     console.log("Peer connection created");
-
+    displayInfo(translations.connectStatusSuccess);
+    connectStatus.innerText = "";
 
     const audioStream = await getAudioStream();
     audioStream.getAudioTracks().forEach(track => {
@@ -407,6 +408,9 @@ function switchLanguage() {
 
     connectButton.innerText = translations.connectButton[lang];
 
+    ssConnectButton.innerText = translations.ssConnectButton[lang];
+    ssPwInput.placeholder = translations.ssPwInput[lang]
+
     disconnectButton.innerText = translations.disconnectButton[lang];
     connectStatus.innerText = ""; //TODO:
     msgButton.innerText = translations.msgButton[lang];
@@ -428,3 +432,5 @@ fetch(SIGNALING_SV_URL + "/ping")
     console.log("Successfully pinged signaling server!");
     displayInfo(txt);
 })
+
+function indeterminizer() {return true;}

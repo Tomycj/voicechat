@@ -3,9 +3,25 @@ export default {
         es: "Entrada de audio",
         en: "Audio input device",
     },
+    ssConnectButton: {
+        es: "Conectar al servidor",
+        en: "Connect to server",
+    },
+    ssPwInput: {
+        es: "Contraseña",
+        en: "Password",
+    },
+    ssConnectAttemptFail: {
+        es: "No se pudo conectar al servidor. Revisar la contraseña.",
+        en: "Could not connect to server. Check password.",
+    },
+    ssConnectAttemptSuccess: {
+        es: "Conectado al servidor!",
+        en: "Connected to server!",
+    },
     connectButton: {
         es: "Conectar llamada",
-        en: "Send audio",
+        en: "Connect call",
     },
     disconnectButton: {
         es: "Desconectar",
