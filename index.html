@@ -18,22 +18,20 @@
             <label id="mic-selector-label" for="microphone-selector">Entrada de audio</label>
         </p>
 
-        <p id="ss-controls"><form novalidate>
-            <button id="ss-connect">Conectar al servidor</button>
-            <input type="text" hidden autocomplete="username">
+        <form novalidate id="ss-controls">
+            <button type="button" id="ss-connect">Conectar al servidor</button>
+            <input type="text" name="username" hidden autocomplete="username">
             <input type="password" id="ss-pw" placeholder="Contraseña" autocomplete="current-password">
-        </form></p>
+        </form>
 
         <div id="call-controls" hidden>
-
-
             <p>
                 <button id="connect-button">Conectar llamada</button>
                 <button id="disconnect" disabled>Desconectar</button>
                 <span id="connect-status"></span>
             </p>
 
-            <p>
+            <p hidden>
                 <button id="message-button">Enviar mensaje</button>
             </p>
         </div>

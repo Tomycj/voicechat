@@ -48,6 +48,11 @@ button:hover:enabled {
 	font-size: 16px;
 }
 
+form {
+	margin-top: 1em;
+	margin-bottom: 1em;
+}
+
 input {
 	min-height: 3ch;
 }
