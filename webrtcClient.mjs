@@ -1,7 +1,7 @@
 "use strict"
 import translations from "./translations.mjs";
 
-const SIGNALING_SV_HOSTNAME = "tomycj.ddnsfree.com";
+const SIGNALING_SV_HOSTNAME = "tomycj.tail1804c6.ts.net";
 const SIGNALING_SV_URL = "https://" + SIGNALING_SV_HOSTNAME;
 
 const CHOSEN_MIC_LABEL = "Micrófono (VB-Audio Virtual Cable)";
