@@ -7,7 +7,6 @@
 body {
 	background-color: var(--bg-color);
 	font-family: Arial;
-	overflow-y: scroll;
 }
 body::-webkit-scrollbar {
 	width: 0.8em;
@@ -26,13 +25,16 @@ body::-webkit-scrollbar-track {
 	-webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
 }
 
-button{
+button {
 	background-color: var(--bg-color-dark);
 	border-color: rgb(36, 36, 36);
 	border-style: solid;
 	min-height: 4ch;
 }
-button:disabled{
+button:active {
+	border-color: var(--bg-color-darker);
+}
+button:disabled {
 	border-color: rgb(90, 90, 90);
 }
 button:hover:enabled {
@@ -63,35 +65,6 @@ textarea {
 	font-size: 16px;
 }
 
-dialog {
-	position: fixed;
-	margin: 0;
-	top: 100px;
-	left: 50%;
-	transform: translate(-50%, 0);
-	max-width: 65ch;
-	overflow-y: auto;
-	max-height: calc(100vh - 150px);
-	
-	color: white;
-	padding: 1ch;
-	line-height: 2ch;
-	text-align: center;
-	background: rgba(0, 0, 0, 0.9);
-	overscroll-behavior: contain;
-}
-.dialog-button {
-	width: 12ch;
-	height: 4ch;
-}
-.textinput {
-	font-size: 16px;
-}
-.notaInline {
-	margin: 0;
-	display: inline-block;
-	font-size: 14px;
-}
 @keyframes fade-out {
 	from {opacity: 1;}
 	to {opacity: 0;}
@@ -100,36 +73,6 @@ dialog {
 	animation: fade-out 2s 5s;
 	animation-fill-mode: forwards;
 }
-.fixedbl {
-	margin: 0;
-	position: fixed;
-	bottom: 20px;
-	left: 20px;
-}
-.button-container {
-	display: flex;
-	margin-top: 7px;
-	margin-bottom: 7px;
-	gap: 10px;
-	justify-content: flex-start; /* Align items starting from the left edge */
-}
-.separate {
-	margin-left: 70px;
-}
-
-.flex {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
-.plot {
-	width: 800px;
-	height: 400px;
-	background-color:  rgba(0, 0, 0, 0.9);
-	margin-top:12px;
-	margin-bottom: 12px;
-}
 
 select:disabled {
     color: rgba(16, 16, 16, 0.3);
@@ -137,6 +80,7 @@ select:disabled {
 }
 select {
 	max-width: 40ch;
+	min-height: 3.5ch;
 	background-color: var(--bg-color-dark);
 	border-width: 2px;
 	color: black;

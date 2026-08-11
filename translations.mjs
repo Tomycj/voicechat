@@ -12,12 +12,20 @@ export default {
         en: "Password",
     },
     ssConnectAttemptFail: {
-        es: "No se pudo conectar al servidor. Revisar la contraseña.",
+        es: "No se pudo conectar al servidor. Revise la contraseña.",
         en: "Could not connect to server. Check password.",
     },
     ssConnectAttemptSuccess: {
         es: "Conectado al servidor!",
         en: "Connected to server!",
+    },
+    ssDisconnected: {
+        es: "Desconectado del servidor!",
+        en: "Disconnected from server!",
+    },
+    ssPingFail: {
+        es: "No se pudo contactar al servidor.",
+        en: "Could not contact server.",
     },
     connectButton: {
         es: "Conectar llamada",

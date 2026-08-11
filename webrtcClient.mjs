@@ -10,9 +10,11 @@ const CHOSEN_MIC_LABEL = "Micrófono (VB-Audio Virtual Cable)";
 const micSelector = document.getElementById("microphone-selector");
 const micSelectorInfo = micSelector.querySelector("#selector-options-info");
 
+const ssControlsUI = document.getElementById("ss-controls");
 const ssConnectButton = document.getElementById("ss-connect");
 const ssPwInput = document.getElementById("ss-pw");
 
+const callControlsUI = document.getElementById("call-controls");
 const connectButton = document.getElementById("connect-button");
 const disconnectButton = document.getElementById("disconnect");
 const connectStatus = document.getElementById("connect-status");
@@ -48,6 +50,20 @@ let localStream;
 */
 
 await handleMicrophoneAccess();
+
+fetch(SIGNALING_SV_URL + "/ping")
+    .then(res=>res.text())
+    .then(txt=>{
+        console.log("Successfully pinged signaling server!");
+        displayInfo(txt);
+    })
+    .catch((err)=>{
+        console.warn("Ping to signaling server failed.");
+        displayInfo(translations.ssPingFail[currentLanguage]);
+    })
+;
+
+// Utility objects
 
 const signaling = {
     /** @type {WebSocket} */
@@ -108,10 +124,15 @@ const signaling = {
         }
 
         socket.onclose = (ev)=> {
-            console.log("WSS: Closed.");
+            console.log("WS: Closed.");
+
             hangup();
-            document.getElementById("call-controls").hidden = true;
-            document.getElementById("ss-controls").hidden = false;
+
+            if (ssControlsUI.hidden === true) {
+                ssControlsUI.hidden = false;
+                callControlsUI.hidden = true;
+                displayInfo(translations.ssDisconnected[currentLanguage]);
+            }
         }
 
         return new Promise((resolve, reject) => {
@@ -147,13 +168,6 @@ const signaling = {
     },
 }
 
-fetch(SIGNALING_SV_URL + "/ping")
-.then(res=>res.text())
-.then(txt=>{
-    console.log("Successfully pinged signaling server!");
-    displayInfo(txt);
-});
-
 // Event handling
 
 micSelector.addEventListener("change", async _=> {
@@ -173,8 +187,8 @@ ssConnectButton.onclick = _=> {
 
     signaling.initialize()
     .then(()=>{
-        document.getElementById("call-controls").hidden = false;
-        document.getElementById("ss-controls").hidden = true;
+        callControlsUI.hidden = false;
+        ssControlsUI.hidden = true;
         sessionStorage.setItem("voicechat-data", password);
     })
     .catch((err)=>{
@@ -334,8 +348,11 @@ async function hangup() {
         peerConnection = null;
     }
 
-    localStream.getTracks().forEach(track=>track.stop());
-    localStream = null;
+    if (localStream) {
+        localStream.getTracks().forEach(track=>track.stop());
+        localStream = null;
+    }
+
     connectButton.disabled = false;
     disconnectButton.disabled = true;
     connectStatus.innerText = "";
@@ -380,7 +397,10 @@ async function createPeerConnection() {
 }
 
 
-/** Get audio from user-selected microphone */
+/** Get audio from user-selected microphone.  
+ * Can use .getAudioTracks()[0].getCapabilities/getSettings() on 
+ * the return value.
+*/
 async function getAudioStream() {
 
     return navigator.mediaDevices.getUserMedia({
@@ -389,10 +409,11 @@ async function getAudioStream() {
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
+            voiceIsolation: false,
             channelCount: 1, //doesn't seem to work, still results in 2.
             //latency: //in seconds. Default = 0.01
-            sampleRate: 8000,//audio samples per second. cd=44.1k (def), digital=48k, mastering=96k, hd=192k. can go as low as 8k for voice, 11025-22050 for music.
-            sampleSize: 8,//bits per sample, per audio channel. Normal: 16 (def). lq=8, hq=24
+            sampleRate: 48000,//audio samples per second. cd=44.1k (def), digital=48k, mastering=96k, hd=192k. can go as low as 8k for voice, 11025-22050 for music.
+            sampleSize: 16,//bits per sample, per audio channel. Normal: 16 (def). lq=8, hq=24
         }
     });
 }
@@ -421,17 +442,10 @@ function switchLanguage() {
     ssPwInput.placeholder = translations.ssPwInput[lang]
 
     disconnectButton.innerText = translations.disconnectButton[lang];
-    connectStatus.innerText = ""; //TODO:
+    connectStatus.innerText = "";
     msgButton.innerText = translations.msgButton[lang];
     currentLanguage = lang;
     document.documentElement.lang = lang;
-}
-
-async function wait() {
-    console.log("Awaiting for 1 second...")
-    return new Promise((resolve, reject)=>{
-        setTimeout(resolve,1000)
-    })
 }
 
 function indeterminizer() {return true;}
