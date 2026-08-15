@@ -4,7 +4,7 @@ import translations from "./translations.mjs";
 const SIGNALING_SV_HOSTNAME = "tomycj.tail1804c6.ts.net";
 const SIGNALING_SV_URL = "https://" + SIGNALING_SV_HOSTNAME;
 
-const CHOSEN_MIC_LABEL = "Micrófono (VB-Audio Virtual Cable)";
+//const CHOSEN_MIC_LABEL = "Micrófono (VB-Audio Virtual Cable)"; // unused functionality
 
 
 const micSelector = document.getElementById("microphone-selector");
@@ -27,6 +27,7 @@ const remoteAudioElement = document.getElementById("remote-audio");
 
 
 let currentLanguage = document.documentElement.lang;
+let chosenMicDeviceId = sessionStorage.getItem("chosenMicId");
 
 /** @type {RTCPeerConnection} */
 let peerConnection;
@@ -171,6 +172,10 @@ const signaling = {
 // Event handling
 
 micSelector.addEventListener("change", async _=> {
+    
+    if (micSelector.value.startsWith("info")) return;
+
+    setChosenMic(micSelector.value);
 
     if (!peerConnection) return;
 
@@ -225,60 +230,85 @@ async function handleMicrophoneAccess() {
 
     const permissionStatus = await navigator.permissions.query({name: "microphone"});
 
-    console.log("Permission status is", permissionStatus.state)
+    function handleNewPermissionStatus() {
+        console.log("Permission status is", permissionStatus.state)
+
+        if (permissionStatus.state === "granted") {
+            populateMicrophonesList();
+            navigator.mediaDevices.ondevicechange = populateMicrophonesList;
+            return;
+        }
+        if (permissionStatus.state === "denied") {
+            micSelectorInfo.text = translations.micSelectorError[currentLanguage];
+            micSelectorInfo.value = "info-error";
+        }
+    }
 
     function populateMicrophonesList() {
         navigator.mediaDevices.enumerateDevices()
         .then(devices => {
     
             const audioInputs = devices.filter(device => device.kind === "audioinput");
-        
+
+            micSelector.replaceChildren(micSelectorInfo);
+
             if (audioInputs.length === 0) {
                 micSelectorInfo.text = translations.micSelectorEmpty[currentLanguage];
-                micSelectorInfo.value = "empty";
+                micSelectorInfo.value = "info-empty";
                 return;
             }
 
             micSelectorInfo.remove();
             micSelectorInfo.value = null;
 
+            let idOnUI = 1;
+            let defaultMicIndex = null;
+            let defaultCommsMicIndex = null;
             for (const audioInput of audioInputs) {
                 const option = document.createElement("option");
-                option.text = audioInput.label || "Unlabeled audio device";
+                option.text = audioInput.label || `Unlabeled audio device #${idOnUI++}`;
                 option.value = audioInput.deviceId;
                 micSelector.appendChild(option);
+
+                if (option.value === chosenMicDeviceId) micSelector.selectedIndex = option.index;
+                
+                if (option.value === "default") defaultMicIndex = option.index;
+                if (option.value === "communications") defaultCommsMicIndex = option.index;
             }
-        
+
+            // If I never selected a mic and the user agent has a default one
+            if (chosenMicDeviceId === null && defaultMicIndex !== null) {
+                micSelector.selectedIndex = defaultMicIndex;
+            }
+            else if (chosenMicDeviceId === null && defaultCommsMicIndex !== null) {
+                micSelector.selectedIndex = defaultCommsMicIndex;
+            }
+
+            // If I had a selected mic and it's not there anymore, request the user to select a new one.
+            if (chosenMicDeviceId !== null && micSelector.value !== chosenMicDeviceId) {
+                micSelectorInfo.text = translations.micSelectorRequesting[currentLanguage];
+                micSelectorInfo.value = "info-requesting";
+                micSelector.appendChild(micSelectorInfo);
+            } else {
+                setChosenMic(micSelector.value);
+            }
+
             //const virtualMicOption = Array.from(micSelector.options).find(option => option.text === CHOSEN_MIC_LABEL);
             //if (virtualMicOption) {virtualMicOption.selected = true};
         });
     }
 
-    if (permissionStatus.state === "granted") {
-        populateMicrophonesList();
-        return;
-    }
+    if (permissionStatus.state === "granted") { handleNewPermissionStatus(); }
     else {
 
-        permissionStatus.onchange = _=>{
+        permissionStatus.onchange = handleNewPermissionStatus;
 
-            console.log("Permission status is", permissionStatus.state)
-
-            if (permissionStatus.state === "granted") {
-                populateMicrophonesList();
-                return;
-            }
-            if (permissionStatus.state === "denied") {
-                micSelectorInfo.text = translations.micSelectorError[currentLanguage];
-                micSelectorInfo.value = "error";
-            }
-        }
-
+        // Request permission (try to trigger a change event)
         navigator.mediaDevices.getUserMedia({ audio: true })
         .catch(err => {
             console.log(`${err.name}: ${err.message}`);
             micSelectorInfo.text = translations.micSelectorError[currentLanguage];
-            micSelectorInfo.value = "error";
+            micSelectorInfo.value = "info-error";
         });
 
     }
@@ -418,6 +448,11 @@ async function getAudioStream() {
     });
 }
 
+function setChosenMic(deviceId) {
+    chosenMicDeviceId = deviceId;
+    sessionStorage.setItem("chosenMicId", deviceId);
+}
+
 function displayInfo(msg) {
     display.innerText = msg;
 
@@ -430,9 +465,10 @@ function switchLanguage() {
 
     const lang = currentLanguage === "es" ? "en" : "es";
 
-    if      (micSelectorInfo.value === "error") micSelectorInfo.text = translations.micSelectorError[lang];
-    else if (micSelectorInfo.value === "empty") micSelectorInfo.text = translations.micSelectorEmpty[lang];
+    if      (micSelectorInfo.value === "info-error") micSelectorInfo.text = translations.micSelectorError[lang];
+    else if (micSelectorInfo.value === "info-empty") micSelectorInfo.text = translations.micSelectorEmpty[lang];
     else if (micSelectorInfo.value === "info")  micSelectorInfo.text = translations.micSelectorInfo[lang];
+    else if (micSelectorInfo.value === "info-requesting")  micSelectorInfo.text = translations.micSelectorRequesting[lang];
 
     document.getElementById("mic-selector-label").innerText = translations.audioInputLabel[lang];
 

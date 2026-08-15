@@ -103,4 +103,8 @@ export default {
         es: "Buscando entradas de audio...",
         en: "Searching audio input devices...",
     },
+    micSelectorRequesting: {
+        es: "Seleccione nueva entrada de audio.",
+        en: "Select new audio input.",
+    },
 };
