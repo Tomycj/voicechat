@@ -390,7 +390,7 @@ async function hangup() {
 
 async function createPeerConnection() {
 
-    peerConnection = new RTCPeerConnection();
+    peerConnection = new RTCPeerConnection({"iceServers": [{"urls": "stun:stun.l.google.com:19302"}]});
 
     peerConnection.onicecandidate = (ev) => {
         if (ev.candidate !== null) {
@@ -411,8 +411,7 @@ async function createPeerConnection() {
 
     peerConnection.ontrack = (ev)=> {
         remoteAudioElement.srcObject = ev.streams[0];
-        //remoteAudioElement.play(); // should be autoplay
-        console.log("[Peer Connection] Received a track. Added its stream to the remote audio.")
+        console.log("[Peer Connection] Received a track. Added its stream to the remote audio.");
     }
     
     console.log("Peer connection created");
