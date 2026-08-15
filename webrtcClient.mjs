@@ -412,6 +412,9 @@ async function createPeerConnection() {
     peerConnection.ontrack = (ev)=> {
         remoteAudioElement.srcObject = ev.streams[0];
         console.log("[Peer Connection] Received a track. Added its stream to the remote audio.");
+        console.log(ev.streams[0].getAudioTracks()[0])
+        console.log(peerConnection.getTransceivers()[0]);
+        console.log(peerConnection.getTransceivers()[1]);
     }
     
     console.log("Peer connection created");
